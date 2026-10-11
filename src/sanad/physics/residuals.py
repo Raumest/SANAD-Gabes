@@ -14,8 +14,8 @@ import pandas as pd
 from sanad.physics.relations import APPLIES
 
 SIGMA_FLOOR = {
-    "R1": 2e-4, "R2": 5e-4, "R3": 2e-3, "R4": 0.5, "R5": 3e-3, "R5B": 3e-3, "R6": 0.2, "R7": 0.5,
-    "R8": 5e-4, "R9": 2e-3, "R10": 0.01, "R10E_DE": 3e-3, "R10E_NDE": 3e-3,
+    "R1": 2e-4, "R2": 5e-4, "R3": 2e-3, "R4": 0.5, "R5": 3e-3, "R5B": 3e-3, "R6": 0.4, "R7": 0.5,
+    "R8": 1e-3, "R9": 2e-3, "R10": 0.01, "R10E_DE": 0.01, "R10E_NDE": 0.01,
 }
 Z_CLIP = 30.0
 
@@ -46,4 +46,4 @@ def normalise(raw: dict[str, pd.DataFrame], norm: dict) -> dict[str, pd.DataFram
 
 def despike(z: pd.DataFrame) -> pd.DataFrame:
     """Causal median of the last 3 minutes, clipped (removes single-minute spikes)."""
-    return z.rolling(3, min_periods=2).median().clip(-Z_CLIP, Z_CLIP)
+    return z.rolling(3, min_periods=3).median().clip(-Z_CLIP, Z_CLIP)

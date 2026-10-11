@@ -62,7 +62,7 @@ def fit_thresholds(zf: dict[str, pd.DataFrame], masks: dict[str, np.ndarray], re
         th[eq] = {}
         for rel in rels[eq]:
             m = masks[eq]
-            col = z[rel].where(pd.Series(m, index=z.index))
+            col = z[rel].where(pd.Series(m, index=z.index)).clip(-8.0, 8.0)
             e = np.abs(ewma(col, det["ewma_lambda"]))
             c = np.abs(cusum(col, det["cusum_k"], big_cap))
             e_max = float(np.nanmax(e[m])) if np.isfinite(e[m]).any() else 0.0

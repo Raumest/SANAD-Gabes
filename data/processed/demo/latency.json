@@ -1,0 +1,10 @@
+{
+  "note": "wall-clock timings; vary between machines and runs",
+  "stage_a_total_s": 2.935,
+  "stage_a_per_minute_cycle_ms": 0.1456,
+  "decision_ms_p50": 6.052,
+  "decision_ms_p95": 9.104,
+  "stage_bc_total_s": 0.476,
+  "outputs_s": 2.455,
+  "n_cases": 52
+}

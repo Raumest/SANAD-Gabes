@@ -21,15 +21,20 @@ LABEL_ORDER = [  # most constrained first: long events, then plant-wide grid eve
 ]
 # Occupancy tracks: (tracks checked, tracks taken). Multi-day measurement events use the
 # "long" track: short events on the same machine may not overlap them, but plant-wide grid
-# events may (a sag can happen during a slow drift). Bearing wear uses its own "mech" track.
+# events ("grid" track) may (a sag can happen during a slow drift). Bearing wear uses its
+# own "mech" track.
 def _tracks(label: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
     if label == "PHYS_BEARING_DEGRADATION":
         return ("mech",), ("mech",)
-    if label in ("SENS_DRIFT", "FALS_ENERGY"):
+    if label == "SENS_DRIFT":
+        # one drifting CT at a time plant-wide: 2-of-3 voting assumes the bus-implied path
+        # (built from the OTHER feeders' meters) is healthy
+        return ("long", "main", "drift"), ("long", "drift")
+    if label == "FALS_ENERGY":
         return ("long", "main"), ("long",)
     if label.startswith("GRID"):
-        return ("main",), ("main",)
-    return ("main", "long"), ("main",)
+        return ("main", "grid"), ("grid",)
+    return ("main", "long", "grid"), ("main",)
 ALL_EQ = ["BUS1", "PUMP1", "COMP1", "AUX1"]
 
 
@@ -178,13 +183,19 @@ def _place(label, cfg, drivers, occ, rng, a, b, block, eq_fixed=None, window=Non
         if k1 > b:
             continue
         eqs = ALL_EQ if eq == "BUS1" and label.startswith("GRID") else [eq]
+        if label == "SENS_DRIFT" and window is None and not occ.free(["PLANT"], ("drift",), k0, k1):
+            continue
         check, take = _tracks(label)
+        if label == "SENS_STUCK" and params.get("channel") == "ACC_DE":
+            check = check + ("mech",)  # a frozen accelerometer inside bearing wear would be a compound event
         if window is None and not occ.free(eqs, check, k0, k1):
             continue
         if not _running_ok(label, params, eq, drivers, k0, k1):
             continue
         if window is None:
             occ.take(eqs, take, k0, k1)
+            if label == "SENS_DRIFT":
+                occ.take(["PLANT"], ("drift",), k0, k1)
         return Event(label, eq, k0, k1, params, sid, block)
     raise RuntimeError(f"could not place {label} in block {block}; relax counts or durations")
 

@@ -55,14 +55,24 @@ def split_by_equipment(meas: pd.DataFrame) -> tuple[pd.DatetimeIndex, dict[str, 
             d["comm_status"] = d["comm_status"].fillna("LOST")
         d["v_avg"] = d[["v_l1_v", "v_l2_v", "v_l3_v"]].mean(axis=1, skipna=False)
         d["i_avg"] = d[["i_l1_a", "i_l2_a", "i_l3_a"]].mean(axis=1, skipna=False)
-        d["running"] = d["op_state"].isin(RUN_STATES).to_numpy()
+        # "running" = commanded to run AND the bus is energised (relations are meaningless at 0 V)
+        d["running"] = d["op_state"].isin(RUN_STATES).to_numpy() & (d["v_avg"].fillna(V_LN_NOM) > 0.5 * V_LN_NOM).to_numpy()
         frames[eq] = d
     return ts, frames
 
 
 def load_estimate(d: pd.DataFrame, eq_row: pd.Series) -> pd.Series:
-    """Load fraction estimated from the meter's own input power (nameplate only)."""
-    return (d["p_kw"] * eq_row["eta_rated"] / eq_row["p_rated_kw"]).clip(0, 1.6)
+    """Load fraction from the input power (nameplate only).
+
+    For motors the power is rebuilt from the independent relay CT (3 V I_relay PF), so
+    a drifting meter CT does not leak into the speed (R7) and vibration (R10E) relations.
+    """
+    if "i_relay_a" in d and d["i_relay_a"].notna().any():
+        p = 3.0 * d["v_avg"] * d["i_relay_a"] * d["pf"] / 1000.0
+        p = p.fillna(d["p_kw"])
+    else:
+        p = d["p_kw"]
+    return (p * eq_row["eta_rated"] / eq_row["p_rated_kw"]).clip(0, 1.6)
 
 
 def _window_ratio(num: pd.Series, den: pd.Series, valid: pd.Series, window: int) -> pd.Series:
@@ -85,14 +95,20 @@ def thermal_model(d: pd.DataFrame, e: pd.Series) -> np.ndarray:
     otherwise bias the model for ~tau minutes).
     """
     run = d["running"]
-    steady = run & run.shift(1, fill_value=False) & run.shift(-1, fill_value=False)
+    v_ok = (d["v_avg"] / V_LN_NOM).between(0.95, 1.05)
+    steady = run & run.shift(1, fill_value=False) & run.shift(-1, fill_value=False) & v_ok
     i_r = d["i_relay_a"].mask(spike_minutes(d["i_relay_a"], 0.08, 2.0) & steady).ffill()
     return thermal_response((i_r / e["i_rated_a"]).to_numpy(), d["ambient_temp_c"].to_numpy(),
-                            e["tau_thermal_min"], e["dtheta_rated_k"])
+                            e["tau_thermal_min"], e["dtheta_rated_k"], t_reset=d["winding_temp_c"].to_numpy())
 
 
-def _leave_one_out_median(df: pd.DataFrame) -> pd.DataFrame:
-    return pd.DataFrame({c: df.drop(columns=c).median(axis=1) for c in df.columns})
+def _leave_one_out_median(df: pd.DataFrame, min_others: int = 3) -> pd.DataFrame:
+    """Median of the *other* meters; NaN if fewer than ``min_others`` are available."""
+    out = {}
+    for c in df.columns:
+        o = df.drop(columns=c)
+        out[c] = o.median(axis=1).where(o.notna().sum(axis=1) >= min_others)
+    return pd.DataFrame(out)
 
 
 def raw_residuals(frames: dict[str, pd.DataFrame], eqt: pd.DataFrame, calib: dict, cfg: dict) -> dict[str, pd.DataFrame]:
@@ -100,7 +116,9 @@ def raw_residuals(frames: dict[str, pd.DataFrame], eqt: pd.DataFrame, calib: dic
     w = cfg["detection"]["r5_window_min"]
     n = len(frames["BUS1"])
     voff = calib.get("v_offset", {})
-    v_all = pd.concat({eq: frames[eq]["v_avg"] / V_LN_NOM - voff.get(eq, 0.0) for eq in EQUIPMENT_ORDER}, axis=1)
+    # voltage agreement is only meaningful while the bus is energised (> 0.5 pu)
+    v_all = pd.concat({eq: (frames[eq]["v_avg"] / V_LN_NOM).where(frames[eq]["v_avg"] > 0.5 * V_LN_NOM) - voff.get(eq, 0.0)
+                       for eq in EQUIPMENT_ORDER}, axis=1)
     f_all = pd.concat({eq: frames[eq]["freq_hz"] for eq in EQUIPMENT_ORDER}, axis=1)
     v_ref = _leave_one_out_median(v_all)
     f_ref = _leave_one_out_median(f_all)

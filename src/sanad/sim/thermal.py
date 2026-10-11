@@ -11,8 +11,14 @@ import numpy as np
 
 
 def thermal_response(i_pu: np.ndarray, t_amb: np.ndarray, tau_min: float, dtheta_rated: float,
-                     dt_min: float = 1.0, t0: float | None = None) -> np.ndarray:
-    """Simulate winding temperature. NaN inputs hold the previous input value."""
+                     dt_min: float = 1.0, t0: float | None = None, t_reset: np.ndarray | None = None,
+                     reset_after: int = 5) -> np.ndarray:
+    """Simulate winding temperature. NaN inputs hold the previous input value.
+
+    If ``t_reset`` is given, the state is re-initialised to ``t_reset[k]`` at the first
+    valid current sample after a gap of >= ``reset_after`` minutes (warm restart: the
+    model cannot know what happened while its input was missing).
+    """
     i_pu = np.asarray(i_pu, dtype=float)
     t_amb = np.asarray(t_amb, dtype=float)
     n = len(i_pu)
@@ -23,10 +29,17 @@ def thermal_response(i_pu: np.ndarray, t_amb: np.ndarray, tau_min: float, dtheta
     T = last_a + dtheta_rated * last_i**2 if t0 is None else t0
     ip = i_pu.tolist()
     ta = t_amb.tolist()
+    tr = t_reset.tolist() if t_reset is not None else None
+    gap = 0
     for k in range(n):
         x = ip[k]
         if x == x:  # not NaN
+            if tr is not None and gap >= reset_after and tr[k] == tr[k]:
+                T = tr[k]
+            gap = 0
             last_i = x
+        else:
+            gap += 1
         y = ta[k]
         if y == y:
             last_a = y

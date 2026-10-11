@@ -21,6 +21,20 @@ from sanad.physics import residuals as rs
 from sanad.schema import EQUIPMENT_ORDER, MOTORS
 
 TRIGGERS = {eq: [r for r in rl.APPLIES[eq]] for eq in EQUIPMENT_ORDER}
+# Evidence families: episodes are built per family so that a slow multi-day event (e.g.
+# bearing wear on the vibration channels) does not swallow short unrelated events.
+FAMILIES = {
+    "data": ["v_lost", "v_dq_gap", "v_dq_rate", "v_time_skew"],
+    "electrical": ["flag_R1", "flag_R2", "flag_R3", "flag_R4", "flag_R8", "flag_R9", "v_overcurrent", "v_undervoltage",
+                   "v_interruption", "v_pf_invalid", "v_flat_meter", "v_flat_relay"],
+    "energy": ["flag_R5", "flag_R5B", "v_kwh_decrease"],
+    "thermal": ["flag_R6", "v_temp_range", "v_flat_rtd"],
+    "speed": ["flag_R7", "v_flat_speed"],
+    "mech": ["flag_R10", "flag_R10E_DE", "flag_R10E_NDE", "v_flat_acc_de", "v_flat_acc_nde"],
+    "other": ["if_flag"],
+}
+STAT_CLIP = 8.0
+NO_PERSIST = ("lost", "undervoltage", "interruption")  # corroborated plant-wide / by comm status
 VALIDITY_TRIGGERS = ["lost", "dq_gap", "dq_rate", "undervoltage", "interruption", "overcurrent", "pf_invalid",
                      "kwh_decrease", "temp_range", "time_skew", "flat_meter", "flat_relay", "flat_rtd",
                      "flat_speed", "flat_acc_de", "flat_acc_nde"]
@@ -76,8 +90,11 @@ class StageA:
 
     def _validity(self, eq, d, raw_eq):
         v = validity(d, eq, self.eqt.loc[eq], self.cfg, raw_eq["R6"] if eq in MOTORS else None)
+        # missing values while the link is up (rows with voltage ~0 are expected to lack f/PF)
+        has_nan = (v["nan_frac"] > 0).to_numpy() & ~v["lost"].to_numpy() & ~v["interruption"].to_numpy()
         v["dq_gap"] = (v["nan_frac"] >= 0.99).to_numpy() & ~v["lost"].to_numpy()
-        v["dq_rate"] = pd.Series((v["nan_frac"] > 0).to_numpy() & ~v["lost"].to_numpy()).rolling(60, min_periods=20).mean().to_numpy() > 0.10
+        rate = pd.Series(has_nan.astype(float)).rolling(60, min_periods=20).mean().to_numpy()
+        v["dq_rate"] = (rate > 0.10) & has_nan
         return v
 
     def run(self, ts: pd.DatetimeIndex, frames: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
@@ -96,8 +113,9 @@ class StageA:
                 res[f"z_{rel}"] = zf[rel].to_numpy()
                 res[f"raw_{rel}"] = raw[eq][rel].to_numpy()
             for rel, th in self.thresholds[eq].items():
-                e = st.ewma(zf[rel], det["ewma_lambda"])
-                c = st.cusum(zf[rel], det["cusum_k"], th["cusum_cap"])
+                zs = zf[rel].clip(-STAT_CLIP, STAT_CLIP)  # bound the influence of one outlier
+                e = st.ewma(zs, det["ewma_lambda"])
+                c = st.cusum(zs, det["cusum_k"], th["cusum_cap"])
                 f = (np.abs(zf[rel].to_numpy()) > det["z_threshold"]) | (np.abs(e) > th["ewma"]) | (np.abs(c) > th["cusum_h"])
                 f = np.nan_to_num(f, nan=False).astype(bool)
                 res[f"ewma_{rel}"] = e
@@ -110,7 +128,7 @@ class StageA:
             vflag = np.zeros(len(d), dtype=bool)
             for c in VALIDITY_TRIGGERS:
                 x = val[c].to_numpy().astype(bool)
-                x = x if c in ("lost",) else _persist(x)
+                x = x if c in NO_PERSIST + ("dq_rate",) else _persist(x)
                 res[f"v_{c}"] = x
                 vflag |= x
             X = features(zf, rl.APPLIES[eq], val)
@@ -121,5 +139,11 @@ class StageA:
             res["context_ok"] = ctx
             # LOST rows are always reported; other alarms are suppressed outside normal context
             res["alarm"] = res["v_lost"] | (ctx & (any_rel | vflag | iff))
+            for fam, cols in FAMILIES.items():
+                m = np.zeros(len(d), dtype=bool)
+                for c in cols:
+                    if c in res and (not c.startswith("flag_") or c[5:] in TRIGGERS[eq]):
+                        m |= np.asarray(res[c], dtype=bool)
+                res[f"fam_{fam}"] = (res["v_lost"] if fam == "data" else False) | (ctx & m)
             out[eq] = pd.DataFrame(res, index=d.index)
         return out
