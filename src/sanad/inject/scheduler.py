@@ -203,6 +203,8 @@ def _place(label, cfg, drivers, occ, rng, a, b, block, eq_fixed=None, window=Non
 def schedule_events(cfg: dict, drivers: dict) -> list[Event]:
     """Randomly schedule the Phase 1 injection library over train/val/test blocks."""
     inj = cfg["injection"]
+    if inj.get("scripted"):
+        return scripted_events(cfg, drivers)
     if not inj.get("enabled", True):
         return []
     idx = drivers["idx"]
@@ -230,6 +232,21 @@ def schedule_events(cfg: dict, drivers: dict) -> list[Event]:
             for _ in range(count):
                 events.append(_place(label, cfg, drivers, occ, rng, a, b, block))
     return events
+
+
+def scripted_events(cfg: dict, drivers: dict) -> list[Event]:
+    """Events listed explicitly in ``injection.scripted`` (demo scenario)."""
+    idx = drivers["idx"]
+    t0 = idx[0]
+    bounds = {k: (int((a - t0).total_seconds() // 60), int((b - t0).total_seconds() // 60))
+              for k, (a, b) in usable_bounds(cfg).items()}
+    out = []
+    for e in cfg["injection"]["scripted"]:
+        k0 = int(e["start_min"])
+        block = next((nm for nm, (a, b) in bounds.items() if a <= k0 < b), "embargo")
+        out.append(Event(e["label"], e["equipment_id"], k0, k0 + int(e["duration_min"]), dict(e.get("params", {})),
+                         e.get("sensor_id", ""), block))
+    return out
 
 
 def natural_starts(cfg: dict, truth: dict, injected: list[Event]) -> list[Event]:

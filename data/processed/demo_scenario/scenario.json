@@ -1,0 +1,117 @@
+{
+  "intro": "Scripted, deterministic scenario on a fictional plant (config `configs/scenario.yaml`, seed 20261015). Days 1-3 are normal operation used to fit the detector; the scripted events follow. Use **Next \u25b6** to replay it step by step.",
+  "steps": [
+    {
+      "title": "Normal operation and a COMP1 motor start",
+      "t0": "2025-06-05T01:43:00Z",
+      "t1": "2025-06-05T05:43:00Z",
+      "signals": [
+        [
+          "COMP1",
+          "i_l1_a",
+          "measured"
+        ],
+        [
+          "COMP1",
+          "i_relay_a",
+          "measured"
+        ]
+      ],
+      "y_title": "A",
+      "narrative": "COMP1 starts at Thu 03:43 UTC. The 1-min average start-up current is higher than the running current, op_state = STARTING. Start-up transients are expected behaviour: SANAD suppresses alarms during start/stop. Result in this run: **no case** on COMP1 around the start.",
+      "case_ids": [],
+      "expect_no_case": "No case raised: the start is recognised as normal."
+    },
+    {
+      "title": "Real overload on COMP1",
+      "t0": "2025-06-05T10:13:00Z",
+      "t1": "2025-06-05T12:53:00Z",
+      "signals": [
+        [
+          "COMP1",
+          "i_l1_a",
+          "measured"
+        ],
+        [
+          "COMP1",
+          "i_relay_a",
+          "measured"
+        ]
+      ],
+      "y_title": "A",
+      "narrative": "The compressor load is raised to 1.25\u00d7 rating for 40 min (scripted, illustrative). Both independent current paths (meter CT and relay CT) rise together, the winding temperature follows the thermal model and the bus balance holds \u2014 the fingerprint is clean. SANAD: **C00001 PHYSICAL_EQUIPMENT_FAULT/OVERLOAD (confidence 0.97, IMMEDIATE)**.",
+      "case_ids": [
+        "C00001"
+      ]
+    },
+    {
+      "title": "CT drift on PUMP1 \u2014 naive vs SANAD-protected controller",
+      "t0": "2025-06-05T13:07:00Z",
+      "t1": "2025-06-07T03:07:00Z",
+      "signals": [
+        [
+          "PUMP1",
+          "i_l1_a",
+          "measured"
+        ],
+        [
+          "PUMP1",
+          "i_relay_a",
+          "measured"
+        ],
+        [
+          "PUMP1",
+          "i_l1_a",
+          "trusted"
+        ]
+      ],
+      "y_title": "A",
+      "narrative": "The PUMP1 feeder-meter CT drifts low by 6 %/day (scripted, illustrative). Inside the meter, P = \u221a3\u00b7V\u00b7I\u00b7PF still holds (R1/R2 clean); only independent paths reveal it: R3 (meter vs relay CT) and R4 (bus balance). SANAD: **C00002 SENSOR_FAULT/DRIFT (confidence 0.89, APPROVAL)**. When confidence \u2265 0.85 the meter CT is QUARANTINED and the trusted stream carries a relay-based ESTIMATED current (third trace).",
+      "case_ids": [
+        "C00002"
+      ],
+      "controller": "Over the drift window, the naive controller (raw meter) exceeds the group limit for **891 min** (max 4.3 A over); the SANAD-protected controller for **0 min** (max 0.0 A). Before SANAD's case opens, both controllers see the same (drifting) value."
+    },
+    {
+      "title": "kWh falsification on AUX1 \u2014 SANAD abstains and escalates",
+      "t0": "2025-06-06T05:07:00Z",
+      "t1": "2025-06-07T01:07:00Z",
+      "signals": [
+        [
+          "AUX1",
+          "kwh_register",
+          "measured"
+        ],
+        [
+          "AUX1",
+          "kwh_from_power",
+          "measured"
+        ]
+      ],
+      "y_title": "kWh",
+      "narrative": "The AUX1 kWh register under-reports 25 % of its increments for 18 h (scripted, illustrative). The meter's own power (second trace: \u222bP dt) and the bus energy balance disagree with the register (R5, R5B). AUX1 has a single meter, so only one independent witness exists. SANAD: **C00003 UNCERTAIN (confidence 0.97, APPROVAL)**. The data is held as SUSPECT and an operator decides; SANAD never accuses. Scripted operator action: OVERRIDE with reason \u201cRegister access log shows a firmware update on AUX1 meter; send to metering team, not a tampering case.\u201d.",
+      "case_ids": [
+        "C00003"
+      ]
+    },
+    {
+      "title": "Audit \u2014 verify the chain, then tamper",
+      "t0": "2025-06-05T00:00:00Z",
+      "t1": "2025-06-07T23:59:00Z",
+      "signals": [],
+      "narrative": "Every verdict and the operator override are entries of an append-only, SHA-256 hash-chained log. Verification of the stored log: **chain intact (5 entries)**. Editing one entry (below, in memory) breaks the chain.",
+      "audit": true
+    }
+  ],
+  "controller_summary": {
+    "naive": {
+      "minutes_over_limit": 891,
+      "max_excess_a": 4.3
+    },
+    "protected": {
+      "minutes_over_limit": 0,
+      "max_excess_a": 0.0
+    }
+  },
+  "chain_ok": true
+}

@@ -137,6 +137,7 @@ class StageA:
             res["if_score"] = score
             res["if_flag"] = iff
             res["context_ok"] = ctx
+            res["running"] = d["running"].to_numpy()
             # LOST rows are always reported; other alarms are suppressed outside normal context
             res["alarm"] = res["v_lost"] | (ctx & (any_rel | vflag | iff))
             for fam, cols in FAMILIES.items():

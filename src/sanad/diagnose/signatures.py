@@ -78,8 +78,10 @@ def episode_features(ep: Episode, res: dict[str, pd.DataFrame], paths: dict, vot
         early, late = raw3.iloc[:n3].median(), raw3.iloc[-n3:].median()
         f["r3_early"], f["r3_late"] = float(early), float(late)
         f["r3_growth"] = float(abs(late) / max(abs(early), 1e-3))
-        pre = res[eq]["raw_R3"].iloc[max(0, ep.k0 - 60):ep.k0].dropna()
-        f["r3_step"] = float(abs(raw3.iloc[: max(3, n3 // 3)].median() - (pre.median() if len(pre) else 0.0)))
+        # step at onset: first 10 min of the episode vs 30..5 min before it (a bias jumps, a drift creeps)
+        pre = res[eq]["raw_R3"].iloc[max(0, ep.k0 - 30):max(0, ep.k0 - 5)].dropna()
+        head = res[eq]["raw_R3"].iloc[ep.k0:ep.k0 + 10].dropna()
+        f["r3_step"] = float(abs((head.median() if len(head) else raw3.iloc[0]) - (pre.median() if len(pre) else 0.0)))
     else:
         f["r3_early"] = f["r3_late"] = f["r3_step"] = 0.0
         f["r3_growth"] = 1.0

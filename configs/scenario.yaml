@@ -1,0 +1,32 @@
+# Scripted demo scenario (CLAUDE.md §13). Deterministic; built by `python -m sanad.cli demo`.
+# Days 0-2 (Mon-Wed) are normal operation used to fit Stage A; the scripted events happen
+# on days 3-4. Event magnitudes are scenario choices (illustrative), not measured results.
+extends: default.yaml
+run_id: demo_scenario
+paths:
+  compress: true
+time:
+  duration_days: 6
+split:
+  normal_days: 3
+  train_days: 0
+  val_days: 0
+  test_days: 3
+  embargo_hours: 0
+injection:
+  scripted:
+    - {label: PHYS_OVERLOAD, equipment_id: COMP1, start_min: 4993, duration_min: 40, params: {load: 1.25}}
+    - {label: SENS_DRIFT, equipment_id: PUMP1, start_min: 5167, duration_min: 2160, sensor_id: PUMP1_METER_CT,
+       params: {rate_pct_per_day: -6.0, path: METER_CT}}
+    - {label: FALS_ENERGY, equipment_id: AUX1, start_min: 6127, duration_min: 1080, sensor_id: AUX1_METER_CT,
+       params: {underreport: 0.25}}
+confidence:
+  # no validation block in a 6-day scenario: reuse the isotonic calibration fitted on the
+  # validation block of the main 8-week run (identity if that run has not been processed)
+  calibration_file: data/processed/main/confidence_calibration.json
+demo:
+  safety_margin_frac: 0.01           # controllers aim at limit x (1 - margin)
+  group_current_limit_a: 330.0       # what-if load-limit for PUMP1 + COMP1 (A per phase)
+  comp_min_load: 0.30
+  comp_max_load: 1.10
+  override_reason: "Register access log shows a firmware update on AUX1 meter; send to metering team, not a tampering case."

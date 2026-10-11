@@ -1,0 +1,18 @@
+{
+  "method": "isotonic",
+  "n": 36,
+  "accuracy": 0.9444444444444444,
+  "ece_before": 0.1615135806060837,
+  "ece_after": 0.05768342164502992,
+  "x": [
+    0.0,
+    0.5491266319622804,
+    0.9292929292929294
+  ],
+  "y": [
+    0.0,
+    1.0,
+    1.0
+  ],
+  "source": "data/processed/main/confidence_calibration.json"
+}

@@ -21,9 +21,9 @@ Event-level scoring: an injected event is *detected* if a case overlaps it (even
 |---|---|
 | Injected events | 62 |
 | Event detection rate | 98.4% |
-| Event classification accuracy (correct class, abstentions count as wrong) | 88.7% |
-| Cases raised | 91 |
-| Abstention rate (UNCERTAIN cases / cases) | 15.4% |
+| Event classification accuracy (correct class, abstentions count as wrong) | 87.1% |
+| Cases raised | 70 |
+| Abstention rate (UNCERTAIN cases / cases) | 14.3% |
 | False-positive cases (no injected event) | 0 |
 | False positives per day | 0.000 |
 | … of which on normal motor starts | 0 |
@@ -32,9 +32,9 @@ Event-level scoring: an injected event is *detected* if a case overlaps it (even
 
 | Class | Events | Detected | Recall | Cases predicted | Precision | F1 | Abstained events | Median delay (min) |
 |---|---|---|---|---|---|---|---|---|
-| PHYSICAL_EQUIPMENT_FAULT | 13 | 12 | 92.3% | 24 | 100.0% | 96.0% | 0 | 594.000 |
+| PHYSICAL_EQUIPMENT_FAULT | 13 | 12 | 92.3% | 12 | 100.0% | 96.0% | 0 | 594.000 |
 | GRID_EVENT | 12 | 12 | 100.0% | 12 | 100.0% | 100.0% | 0 | 0.000 |
-| SENSOR_FAULT | 13 | 13 | 92.3% | 17 | 100.0% | 96.0% | 1 | 283.000 |
+| SENSOR_FAULT | 13 | 13 | 84.6% | 12 | 100.0% | 91.7% | 2 | 283.000 |
 | BIAS_MISCALIBRATION | 6 | 6 | 66.7% | 5 | 100.0% | 80.0% | 2 | 1.000 |
 | CORRUPTION_FALSIFICATION | 6 | 6 | 50.0% | 6 | 100.0% | 66.7% | 3 | 18.000 |
 | COMMUNICATION_PROBLEM | 12 | 12 | 100.0% | 13 | 100.0% | 100.0% | 0 | 0.000 |
@@ -48,10 +48,10 @@ Event-level scoring: an injected event is *detected* if a case overlaps it (even
 | FALS_ENERGY | 6 | 6 | 3 | 3 | 18.000 |
 | GRID_INTERRUPTION | 6 | 6 | 6 | 0 | 0.000 |
 | GRID_SAG | 6 | 6 | 6 | 0 | 0.000 |
-| PHYS_BEARING_DEGRADATION | 6 | 6 | 6 | 0 | 1413.000 |
+| PHYS_BEARING_DEGRADATION | 6 | 6 | 6 | 0 | 1377.000 |
 | PHYS_OVERLOAD | 7 | 6 | 6 | 0 | 2.500 |
 | SENS_BIAS | 6 | 6 | 4 | 2 | 1.000 |
-| SENS_DRIFT | 7 | 7 | 7 | 0 | 386.000 |
+| SENS_DRIFT | 7 | 7 | 6 | 1 | 386.000 |
 | SENS_STUCK | 6 | 6 | 5 | 1 | 4.000 |
 
 ## Confusion matrix (test block, events: truth × predicted)
@@ -63,15 +63,15 @@ Event-level scoring: an injected event is *detected* if a case overlaps it (even
 | FALS | 0 | 0 | 0 | 0 | 3 | 0 | 0 | 3 | 0 |
 | GRID | 0 | 12 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | PHYS | 12 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
-| SENSOR | 0 | 0 | 12 | 0 | 0 | 0 | 0 | 1 | 0 |
+| SENSOR | 0 | 0 | 11 | 0 | 0 | 0 | 0 | 2 | 0 |
 
 ## All blocks
 
 | Block | Events | Detection | Accuracy | Cases | Abstention | FP cases | FP/day |
 |---|---|---|---|---|---|---|---|
-| train | 30 | 100.0% | 93.3% | 46 | 2.2% | 1 | 0.077 |
-| val | 30 | 100.0% | 100.0% | 42 | 4.8% | 1 | 0.077 |
-| test | 62 | 98.4% | 88.7% | 91 | 15.4% | 0 | 0.000 |
+| train | 30 | 100.0% | 96.7% | 40 | 5.0% | 2 | 0.154 |
+| val | 30 | 100.0% | 100.0% | 36 | 5.6% | 0 | 0.000 |
+| test | 62 | 98.4% | 87.1% | 70 | 14.3% | 0 | 0.000 |
 
 Normal-only block (in-sample, used to fit Stage A): 0 cases (0.0 per day).
 
@@ -97,13 +97,13 @@ Requirement: >= 6 per label in test and >= 6 in train+val (normal motor starts o
 
 | Measure | Value |
 |---|---|
-| Stage A (detect) per 1-min decision cycle, amortised over the run | 0.127 ms |
-| Diagnosis + confidence + routing + explanation per case, p50 | 7.393 ms |
-| Diagnosis + confidence + routing + explanation per case, p95 | 9.579 ms |
+| Stage A (detect) per 1-min decision cycle, amortised over the run | 0.1228 ms |
+| Diagnosis + confidence + routing + explanation per case, p50 | 7.319 ms |
+| Diagnosis + confidence + routing + explanation per case, p95 | 10.595 ms |
 
 ## Confidence calibration (validation block)
 
-Method: isotonic on 42 validation cases (shrunk toward the raw score with a 20-case prior). Top-hypothesis accuracy on validation: 97.6%; ECE before: 0.146, after (in-sample): 0.000.
+Method: isotonic on 36 validation cases (shrunk toward the raw score with a 20-case prior). Top-hypothesis accuracy on validation: 94.4%; ECE before: 0.162, after (in-sample): 0.058.
 
 ## Test events not classified correctly
 
@@ -112,6 +112,7 @@ Method: isotonic on 42 validation cases (shrunk toward the raw score with a 20-c
 | EV0148 | FALS_ENERGY | AUX1 | UNCERTAIN | HIGH |
 | EV0153 | PHYS_OVERLOAD | PUMP1 | MISSED | MEDIUM |
 | EV0161 | FALS_ENERGY | AUX1 | UNCERTAIN | MEDIUM |
+| EV0169 | SENS_DRIFT | PUMP1 | UNCERTAIN | LOW |
 | EV0175 | FALS_ENERGY | AUX1 | UNCERTAIN | HIGH |
 | EV0176 | SENS_BIAS | BUS1 | UNCERTAIN | HIGH |
 | EV0187 | SENS_STUCK | COMP1 | UNCERTAIN | HIGH |

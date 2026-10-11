@@ -1,0 +1,1 @@
+{"ts_utc": "2025-06-07T01:54:00Z", "case_id": "C00003", "action": "OVERRIDE", "reason": "Register access log shows a firmware update on AUX1 meter; send to metering team, not a tampering case.", "operator": "operator-demo (scripted)", "verdict": "UNCERTAIN", "label": "SENSOR_FAULT"}

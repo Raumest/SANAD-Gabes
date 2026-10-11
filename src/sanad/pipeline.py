@@ -119,6 +119,14 @@ class Pipeline:
     # ------------------------------------------------------------------ stage C
     def calibrate(self, cases: list[dict]) -> Calibrator:
         cal = Calibrator(self.cfg["confidence"]["calibration"])
+        ext = self.cfg["confidence"].get("calibration_file")
+        if ext:  # reuse a calibration fitted on another run's validation block (e.g. scenario)
+            from sanad.config import repo_path
+
+            if repo_path(ext).exists():
+                cal = Calibrator.from_json(io.read_json(repo_path(ext)))
+                cal.info["source"] = str(ext)
+                return cal
         if not io.exists(self.gen_dir / "events.csv"):
             return cal
         val = [c for c in cases if c["block"] == "val"]

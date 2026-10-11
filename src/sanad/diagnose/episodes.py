@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
-from sanad.schema import EQUIPMENT_ORDER
+from sanad.schema import EQUIPMENT_ORDER, MOTORS
 
 
 @dataclass
@@ -30,15 +30,21 @@ class Episode:
 LONG_MIN = 720  # episodes longer than this are never merged with other families
 
 
-def runs(mask: np.ndarray, merge_gap: int = 0, min_len: int = 1) -> list[tuple[int, int]]:
-    """[k0, k1) runs of True, merging gaps <= merge_gap, dropping runs < min_len."""
+def runs(mask: np.ndarray, merge_gap: int = 0, min_len: int = 1, evidence: np.ndarray | None = None) -> list[tuple[int, int]]:
+    """[k0, k1) runs of True, merging gaps <= merge_gap, dropping runs < min_len.
+
+    If ``evidence`` is given, only gap minutes with evidence count towards the gap (a motor
+    stop in the middle of a slow drift does not split the case).
+    """
     idx = np.flatnonzero(mask)
     if len(idx) == 0:
         return []
+    cum = None if evidence is None else np.concatenate([[0], np.cumsum(evidence.astype(int))])
     out = []
     a = b = idx[0]
     for k in idx[1:]:
-        if k - b - 1 <= merge_gap:
+        gap = (k - b - 1) if cum is None else int(cum[k] - cum[b + 1])
+        if gap <= merge_gap:
             b = k
         else:
             out.append((a, b + 1))
@@ -110,7 +116,8 @@ def build_episodes(res: dict[str, pd.DataFrame], cfg: dict) -> list[Episode]:
         lost = r["v_lost"].to_numpy()
         fam_eps: list[Episode] = []
         for fam in fams:
-            for a, b in runs(r[f"fam_{fam}"].to_numpy(), gap, 1):
+            ev = r["running"].to_numpy() if fam in ("electrical", "thermal", "speed", "mech") and eq in MOTORS else None
+            for a, b in runs(r[f"fam_{fam}"].to_numpy(), gap, 1, ev):
                 if b - a < min_len and not lost[a:b].any():
                     continue
                 if covered[a:b].mean() >= 0.5:
