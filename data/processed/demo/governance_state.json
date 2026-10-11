@@ -3,10 +3,7 @@
   "second_look_rate": 0.05,
   "override_rate_limit": 0.25,
   "calibration": {
-    "method": "isotonic",
-    "n": 16,
-    "accuracy": 0.9375,
-    "ece_before": 0.19244688404970772,
-    "ece_after": 0.10691493558317092
+    "method": "identity",
+    "n": 11
   }
 }
