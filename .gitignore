@@ -218,3 +218,16 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- SANAD-Gabès ---
+# Raw third-party datasets (licence: Paderborn is CC BY-NC 4.0, never commit)
+data/raw/paderborn/
+*.mat
+# Generated data: only the small 2-week demo run is committed
+data/generated/*
+!data/generated/demo/
+!data/generated/.gitkeep
+data/processed/*
+!data/processed/demo/
+!data/processed/demo_scenario/
+!data/processed/.gitkeep

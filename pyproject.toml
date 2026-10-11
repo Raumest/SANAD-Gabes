@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sanad"
+version = "0.1.0"
+description = "SANAD-Gabès: explainable AI trust layer for a fictional industrial line (TSYP14 EnergyMind)."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "numpy>=2.1", "pandas>=2.2", "scipy>=1.14", "scikit-learn>=1.5",
+  "PyYAML>=6.0", "streamlit>=1.40", "plotly>=5.24",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+sanad = "sanad.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"
