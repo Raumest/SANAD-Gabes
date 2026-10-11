@@ -15,6 +15,6 @@ injection:
   events_per_block: {train: 1, val: 1, test: 2}
   compound_in_test: 0
   min_gap_min: 120
-  PHYS_BEARING_DEGRADATION: {targets: [PUMP1, COMP1], h_max: [2.2, 3.0], duration_days: [1.0, 1.5]}
-  SENS_DRIFT: {targets: [PUMP1, COMP1], rate_pct_per_day: [2.0, 4.0], sign: [-1, 1], duration_days: [0.6, 1.2]}
-  FALS_ENERGY: {targets: [PUMP1, COMP1, AUX1], underreport: [0.10, 0.40], duration_days: [0.5, 1.0]}
+  PHYS_BEARING_DEGRADATION: {targets: [PUMP1, COMP1], h_max: [2.2, 3.0], duration_days: [1.0, 1.3]}
+  SENS_DRIFT: {targets: [PUMP1, COMP1], rate_pct_per_day: [2.0, 4.0], sign: [-1, 1], duration_days: [0.4, 0.8]}
+  FALS_ENERGY: {targets: [PUMP1, COMP1, AUX1], underreport: [0.10, 0.40], duration_days: [0.4, 0.8]}

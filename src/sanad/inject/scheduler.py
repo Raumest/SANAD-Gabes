@@ -10,17 +10,26 @@
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
 
 from sanad.config import rng_for, usable_bounds
 from sanad.inject.events import Event
 
-LABEL_ORDER = [
-    "PHYS_BEARING_DEGRADATION", "SENS_DRIFT", "FALS_ENERGY", "SENS_BIAS", "SENS_STUCK",
-    "DQ_MISSING", "PHYS_OVERLOAD", "COMM_DROPOUT", "GRID_INTERRUPTION", "GRID_SAG",
+LABEL_ORDER = [  # most constrained first: long events, then plant-wide grid events
+    "PHYS_BEARING_DEGRADATION", "GRID_INTERRUPTION", "GRID_SAG", "SENS_DRIFT", "FALS_ENERGY",
+    "SENS_BIAS", "SENS_STUCK", "DQ_MISSING", "PHYS_OVERLOAD", "COMM_DROPOUT",
 ]
-# Which occupancy track an event uses. Events on different tracks of the same equipment
-# may overlap (e.g. a slow bearing degradation and a short data gap).
-TRACK = {"PHYS_BEARING_DEGRADATION": "mech", "FALS_ENERGY": "register"}
+# Occupancy tracks: (tracks checked, tracks taken). Multi-day measurement events use the
+# "long" track: short events on the same machine may not overlap them, but plant-wide grid
+# events may (a sag can happen during a slow drift). Bearing wear uses its own "mech" track.
+def _tracks(label: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    if label == "PHYS_BEARING_DEGRADATION":
+        return ("mech",), ("mech",)
+    if label in ("SENS_DRIFT", "FALS_ENERGY"):
+        return ("long", "main"), ("long",)
+    if label.startswith("GRID"):
+        return ("main",), ("main",)
+    return ("main", "long"), ("main",)
 ALL_EQ = ["BUS1", "PUMP1", "COMP1", "AUX1"]
 
 
@@ -33,13 +42,14 @@ class Occupancy:
     def _m(self, eq, track):
         return self.masks.setdefault((eq, track), np.zeros(self.n, dtype=bool))
 
-    def free(self, eqs, track, k0, k1) -> bool:
+    def free(self, eqs, tracks, k0, k1) -> bool:
         a, b = max(0, k0 - self.gap), min(self.n, k1 + self.gap)
-        return not any(self._m(e, track)[a:b].any() for e in eqs)
+        return not any(self._m(e, t)[a:b].any() for e in eqs for t in tracks)
 
-    def take(self, eqs, track, k0, k1):
+    def take(self, eqs, tracks, k0, k1):
         for e in eqs:
-            self._m(e, track)[k0:k1] = True
+            for t in tracks:
+                self._m(e, t)[k0:k1] = True
 
 
 def _minutes(rng, lo, hi) -> int:
@@ -105,23 +115,41 @@ def _draw(label: str, cfg: dict, rng) -> tuple[str, int, dict, str]:
     raise KeyError(label)
 
 
+LONG = {"PHYS_BEARING_DEGRADATION", "SENS_DRIFT", "FALS_ENERGY"}
+
+
 def _running_ok(label: str, params: dict, eq: str, drivers: dict, k0: int, k1: int) -> bool:
     """Placement constraints that depend on the commanded schedule."""
     eqs = ALL_EQ if eq == "BUS1" else [eq]
-    for e in eqs:
-        if e == "BUS1":
-            continue
-        if (drivers["eq"][e]["maint_mode"][k0:k1] != "NONE").any():
-            return False
+    if label not in LONG:  # multi-day events may span a planned shutdown
+        for e in eqs:
+            if e != "BUS1" and (drivers["eq"][e]["maint_mode"][k0:k1] != "NONE").any():
+                return False
     if eq == "BUS1" or eq == "AUX1":
         return True
     on = drivers["eq"][eq]["on"][k0:k1]
     st = drivers["eq"][eq]["start"][k0:k1] | drivers["eq"][eq]["stop"][k0:k1]
     if label == "PHYS_OVERLOAD":
         return bool(on.all() and not st.any())
-    if label in ("SENS_DRIFT", "SENS_BIAS", "SENS_STUCK", "PHYS_BEARING_DEGRADATION", "FALS_ENERGY"):
+    if label in LONG:
+        return bool(on[: min(60, len(on))].all())
+    if label in ("SENS_BIAS", "SENS_STUCK"):
         return float(on.mean()) >= 0.7 and bool(on[: min(30, len(on))].all())
     return True
+
+
+def _first_free(occ: Occupancy, eqs, tracks, dur, lo, hi):
+    """Earliest k0 in [lo, hi) such that [k0-gap, k0+dur+gap) is free on all eqs/tracks."""
+    busy = np.zeros(occ.n, dtype=bool)
+    for e in eqs:
+        for t in tracks:
+            busy |= occ._m(e, t)
+    c = np.concatenate([[0], np.cumsum(busy)])
+    ks = np.arange(lo, max(lo, hi))
+    a = np.maximum(ks - occ.gap, 0)
+    b = np.minimum(ks + dur + occ.gap, occ.n)
+    ok = (c[b] - c[a]) == 0
+    return ks[ok]
 
 
 def _place(label, cfg, drivers, occ, rng, a, b, block, eq_fixed=None, window=None):
@@ -134,23 +162,29 @@ def _place(label, cfg, drivers, occ, rng, a, b, block, eq_fixed=None, window=Non
         lo, hi = (a, b - dur) if window is None else (window[0], window[1] - dur)
         if hi <= lo:
             continue
-        k0 = int(rng.integers(lo, hi))
+        if label in LONG and window is None:
+            # first fit + random slack: long events would otherwise fragment the block
+            cand = _first_free(occ, [eq], _tracks(label)[0], dur, lo, hi)
+            cand = cand[cand >= (cand[0] + int(rng.integers(0, max(2, min(720, (hi - lo) // 10)))) if len(cand) else 0)]
+            cand = [k for k in cand[::7][:3000] if k % 15 and _running_ok(label, params, eq, drivers, k, k + dur)]
+            if not cand:
+                continue
+            k0 = int(cand[0])
+        else:
+            k0 = int(rng.integers(lo, hi))
         if k0 % 15 == 0:  # no round timestamps
             k0 += int(rng.integers(1, 14))
         k1 = k0 + dur
         if k1 > b:
             continue
         eqs = ALL_EQ if eq == "BUS1" and label.startswith("GRID") else [eq]
-        track = TRACK.get(label, "main")
-        if window is None and not occ.free(eqs, track, k0, k1):
+        check, take = _tracks(label)
+        if window is None and not occ.free(eqs, check, k0, k1):
             continue
         if not _running_ok(label, params, eq, drivers, k0, k1):
             continue
         if window is None:
-            occ.take(eqs, track, k0, k1)
-            if label.startswith("GRID"):
-                # a grid event also disturbs the mechanical and register tracks
-                occ.take(eqs, "register", k0, k1)
+            occ.take(eqs, take, k0, k1)
         return Event(label, eq, k0, k1, params, sid, block)
     raise RuntimeError(f"could not place {label} in block {block}; relax counts or durations")
 
@@ -189,6 +223,9 @@ def schedule_events(cfg: dict, drivers: dict) -> list[Event]:
 
 def natural_starts(cfg: dict, truth: dict, injected: list[Event]) -> list[Event]:
     """Normal motor starts (NORMAL_START) found in the true state — not anomalies."""
+    t0 = pd.Timestamp(cfg["time"]["start_utc"])
+    bounds = [(name, int((a - t0).total_seconds() // 60), int((b - t0).total_seconds() // 60))
+              for name, (a, b) in usable_bounds(cfg).items()]
     out = []
     outages = [(e.k0, e.k1 + 2) for e in injected if e.label == "GRID_INTERRUPTION"]
     for eq in ("PUMP1", "COMP1"):
@@ -198,7 +235,8 @@ def natural_starts(cfg: dict, truth: dict, injected: list[Event]) -> list[Event]
         for k in ks:
             if maint[k] != "NONE" or any(a <= k <= b for a, b in outages):
                 continue  # restarts after a grid interruption belong to that event
-            out.append(Event("NORMAL_START", eq, int(k), int(k) + 2, {}, f"{eq}_METER_CT", ""))
+            block = next((nm for nm, a, b in bounds if a <= k < b), "embargo")
+            out.append(Event("NORMAL_START", eq, int(k), int(k) + 2, {}, f"{eq}_METER_CT", block))
     return out
 
 
