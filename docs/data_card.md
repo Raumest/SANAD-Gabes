@@ -5,7 +5,7 @@
 | Item | Value |
 |---|---|
 | Generator | `python -m sanad.cli generate [--config ...]` (deterministic, seed in config) |
-| Default run | `configs/default.yaml` → `data/generated/main/` (8 weeks, ~15 s, not committed) |
+| Default run | `configs/default.yaml` → `data/generated/main/` (8 weeks, ~15 s, committed as gzipped CSV, ~26 MB) |
 | Committed run | `configs/demo.yaml` → `data/generated/demo/` (2 weeks, gzipped CSV) |
 | Resolution | 1 min for everything (Phase 1). No 1-s bursts |
 | Plant | 400 V / 50 Hz bus fed by a 1 MVA 30/0.4 kV transformer; BUS1 incomer, PUMP1 90 kW, COMP1 132 kW, AUX1 ~60 kW |

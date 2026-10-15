@@ -14,7 +14,7 @@ paths:
   processed_dir: data/processed
   reports_dir: reports
   raw_dir: data/raw
-  compress: false               # write *.csv.gz instead of *.csv
+  compress: true                # write *.csv.gz instead of *.csv
 
 time:
   start_utc: "2025-06-02T00:00:00Z"   # a Monday; 8 weeks of early-summer operation

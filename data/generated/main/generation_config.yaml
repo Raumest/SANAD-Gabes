@@ -1,0 +1,436 @@
+# Fictional process plant in the Gabès industrial zone. All parameters are simulation assumptions. No measurement originates from a real company.
+# Frozen copy of the configuration used for this run (incl. seeds).
+run_id: main
+data_source: synthetic
+seed: 20261015
+paths:
+  generated_dir: data/generated
+  processed_dir: data/processed
+  reports_dir: reports
+  raw_dir: data/raw
+  compress: true
+time:
+  start_utc: '2025-06-02T00:00:00Z'
+  duration_days: 56
+  resolution_min: 1
+  utc_offset_h: 1
+split:
+  normal_days: 14
+  train_days: 14
+  val_days: 14
+  test_days: 14
+  embargo_hours: 24
+plant:
+  node_id: GAB-N1
+  v_ll_nominal: 400.0
+  f_nominal: 50.0
+  transformer_kva: 1000.0
+  bus:
+    loss_frac: 0.015
+    loss_frac_q: 0.02
+    unmetered_kw: 2.0
+    unmetered_kvar: 1.0
+    unmetered_noise_kw: 0.3
+  grid:
+    v_daily_amp: 0.008
+    v_ar_phi: 0.995
+    v_ar_sigma: 0.0004
+    phase_unbalance:
+    - 0.003
+    - -0.001
+    - -0.002
+    f_ar_phi: 0.95
+    f_ar_sigma: 0.004
+    thd_v_mean: 2.8
+  equipment:
+    PUMP1:
+      type: motor
+      description: Seawater/process pump, induction motor, 4-pole
+      p_rated_kw: 90.0
+      eta_rated: 0.945
+      no_load_loss_share: 0.3
+      slip_rated: 0.012
+      poles: 4
+      tau_thermal_min: 30.0
+      dtheta_rated_k: 70.0
+      share: 0.85
+      current_unbalance:
+      - 0.008
+      - -0.003
+      - -0.005
+      vib_v0_g: 0.05
+      vib_kl_g: 0.1
+      vib_nde_ratio: 0.85
+      inrush_multiple: 6.0
+      inrush_decay_s: 6.0
+      daily_pause: true
+    COMP1:
+      type: motor
+      description: Process compressor, induction motor, 4-pole, load/unload cycling
+      p_rated_kw: 132.0
+      eta_rated: 0.952
+      no_load_loss_share: 0.3
+      slip_rated: 0.01
+      poles: 4
+      tau_thermal_min: 35.0
+      dtheta_rated_k: 75.0
+      share: 0.92
+      unload_fraction: 0.25
+      cycle_load_min:
+      - 8
+      - 25
+      cycle_unload_min:
+      - 3
+      - 10
+      night_off:
+      - 23
+      - 5
+      current_unbalance:
+      - -0.006
+      - 0.01
+      - -0.004
+      vib_v0_g: 0.06
+      vib_kl_g: 0.12
+      vib_nde_ratio: 0.8
+      inrush_multiple: 6.5
+      inrush_decay_s: 7.0
+    AUX1:
+      type: aux
+      description: Lighting, HVAC, small drives
+      p_rated_kw: 60.0
+      share: 0.55
+      hvac_gain: 0.25
+      pf: 0.92
+      current_unbalance:
+      - 0.012
+      - -0.004
+      - -0.008
+load:
+  weekday_profile:
+  - - 0
+    - 0.45
+  - - 6
+    - 0.45
+  - - 8
+    - 0.88
+  - - 12
+    - 0.9
+  - - 13
+    - 0.82
+  - - 14
+    - 0.9
+  - - 17
+    - 0.86
+  - - 19
+    - 0.7
+  - - 22
+    - 0.5
+  - - 24
+    - 0.45
+  weekend_factor: 0.6
+  ar_phi: 0.97
+  ar_sigma: 0.01
+  clip:
+  - 0.0
+  - 1.4
+  op_state_thresholds:
+  - 0.4
+  - 0.9
+climate:
+  t_annual_mean_c: 20.5
+  t_annual_amp_c: 8.5
+  t_daily_amp_c: 7.5
+  t_ar_phi: 0.995
+  t_ar_sigma: 0.08
+  irradiance_peak_wm2: 1000.0
+sensors:
+  meter:
+    class: 0.5S
+    gain_sigma: 0.0015
+    v_gain_sigma: 0.001
+    i_noise_rel: 0.001
+    v_noise_v: 0.15
+    pf_noise: 0.002
+    f_noise_hz: 0.003
+  bus_meter:
+    class: 0.2S
+    gain_sigma: 0.0008
+    v_gain_sigma: 0.0008
+    i_noise_rel: 0.0008
+    v_noise_v: 0.12
+    pf_noise: 0.0015
+    f_noise_hz: 0.003
+  relay_ct:
+    class: 5P10
+    gain_sigma: 0.004
+    i_noise_rel: 0.004
+  rtd:
+    class: PT100 B
+    offset_sigma_k: 0.3
+    noise_k: 0.25
+  accelerometer:
+    class: ISO 10816 IEPE
+    gain_sigma: 0.02
+    noise_g: 0.004
+  speed:
+    class: encoder
+    noise_rpm: 1.0
+  ambient:
+    class: PT100
+    noise_k: 0.15
+  rounding:
+    v: 0.1
+    i: 0.01
+    p: 0.01
+    pf: 0.001
+    f: 0.001
+    kwh: 0.01
+    temp: 0.1
+    vib: 0.001
+    speed: 0.1
+    thd: 0.01
+baseline_dq:
+  mcar_missing_rate: 0.0005
+  spike_rate: 0.0002
+  spike_rel:
+  - 0.15
+  - 0.5
+  jitter_s: 0.6
+  delayed_rate: 0.002
+injection:
+  events_per_block:
+    train: 3
+    val: 3
+    test: 6
+  min_gap_min: 120
+  compound_in_test: 1
+  PHYS_OVERLOAD:
+    targets:
+    - PUMP1
+    - COMP1
+    load:
+    - 1.1
+    - 1.4
+    duration_min:
+    - 10
+    - 60
+  PHYS_BEARING_DEGRADATION:
+    targets:
+    - PUMP1
+    - COMP1
+    h_max:
+    - 2.2
+    - 3.0
+    duration_days:
+    - 3.0
+    - 3.6
+  GRID_SAG:
+    v_factor:
+    - 0.4
+    - 0.88
+    duration_min:
+    - 1
+    - 3
+  GRID_INTERRUPTION:
+    duration_min:
+    - 2
+    - 12
+    coast_tau_min: 1.0
+  SENS_DRIFT:
+    targets:
+    - PUMP1
+    - COMP1
+    rate_pct_per_day:
+    - 1.0
+    - 3.0
+    sign:
+    - -1
+    - 1
+    duration_days:
+    - 0.75
+    - 1.5
+  SENS_BIAS:
+    targets_voltage:
+    - BUS1
+    - PUMP1
+    - COMP1
+    - AUX1
+    targets_temperature:
+    - PUMP1
+    - COMP1
+    targets_current:
+    - PUMP1
+    - COMP1
+    voltage_v:
+    - 3.0
+    - 8.0
+    temperature_k:
+    - 4.0
+    - 10.0
+    current_pct_rated:
+    - 1.5
+    - 3.0
+    duration_min:
+    - 180
+    - 720
+  SENS_STUCK:
+    targets:
+    - PUMP1
+    - COMP1
+    channels:
+    - METER
+    - RTD
+    - SPEED
+    - ACC_DE
+    duration_min:
+    - 20
+    - 360
+  DQ_MISSING:
+    targets:
+    - BUS1
+    - PUMP1
+    - COMP1
+    - AUX1
+    mcar_rate:
+    - 0.01
+    - 0.05
+    window_min:
+    - 120
+    - 360
+    bursts:
+    - 1
+    - 3
+    burst_min:
+    - 5
+    - 60
+  FALS_ENERGY:
+    targets:
+    - PUMP1
+    - COMP1
+    - AUX1
+    underreport:
+    - 0.1
+    - 0.4
+    duration_days:
+    - 1.0
+    - 2.0
+  COMM_DROPOUT:
+    targets:
+    - BUS1
+    - PUMP1
+    - COMP1
+    - AUX1
+    duration_min:
+    - 1
+    - 120
+taxonomy:
+  NORMAL_START:
+  - NORMAL
+  - START
+  PHYS_OVERLOAD:
+  - PHYSICAL_EQUIPMENT_FAULT
+  - OVERLOAD
+  PHYS_BEARING_DEGRADATION:
+  - PHYSICAL_EQUIPMENT_FAULT
+  - BEARING_DEGRADATION
+  GRID_SAG:
+  - GRID_EVENT
+  - SUSTAINED_UNDERVOLTAGE
+  GRID_INTERRUPTION:
+  - GRID_EVENT
+  - INTERRUPTION
+  SENS_DRIFT:
+  - SENSOR_FAULT
+  - DRIFT
+  SENS_BIAS:
+  - BIAS_MISCALIBRATION
+  - BIAS
+  SENS_STUCK:
+  - SENSOR_FAULT
+  - STUCK
+  DQ_MISSING:
+  - COMMUNICATION_PROBLEM
+  - DATA_GAP
+  FALS_ENERGY:
+  - CORRUPTION_FALSIFICATION
+  - ENERGY_UNDERREPORT
+  COMM_DROPOUT:
+  - COMMUNICATION_PROBLEM
+  - DROPOUT
+detection:
+  persistence:
+  - 2
+  - 3
+  z_threshold: 6.0
+  ewma_lambda: 0.05
+  ewma_margin: 1.3
+  ewma_min: 1.5
+  cusum_k: 1.0
+  cusum_margin: 1.3
+  cusum_min_h: 12.0
+  cusum_cap_extra: 20.0
+  r5_window_min: 60
+  flatline_min: 10
+  episode_merge_gap_min: 15
+  episode_min_len_min: 2
+  overcurrent_pu: 1.04
+  undervoltage_pu: 0.92
+  interruption_pu: 0.1
+  iforest:
+    n_estimators: 150
+    max_samples: 512
+    ood_margin: 0.02
+    min_len_min: 10
+diagnosis:
+  vote_tolerance: 0.012
+  drift_trend_ratio: 1.8
+  null_evidence: 0.35
+confidence:
+  abstain_conf: 0.6
+  abstain_margin: 0.15
+  min_redundant_paths: 2
+  calibration: isotonic
+governance:
+  auto_quarantine_conf: 0.85
+  suspect_conf: 0.6
+  short_gap_max_min: 15
+  override_rate_limit: 0.25
+  calibration_error_limit: 0.15
+  second_look_rate: 0.05
+  min_cases_for_trust: 5
+audit:
+  log_name: audit_log.jsonl
+disclaimer: Fictional process plant in the Gabès industrial zone. All parameters are
+  simulation assumptions. No measurement originates from a real company.
+_config_path: configs/default.yaml
+_sensor_params_ground_truth:
+  BUS1_meter:
+    gi: 0.0003363479293519128
+    gv: -0.0012665238905128402
+  PUMP1_meter:
+    gi: 0.002428819644241121
+    gv: 0.0009687008053337842
+  PUMP1_relay:
+    g: -0.007091994120182639
+  PUMP1_rtd:
+    'off': -0.2283528378814739
+  PUMP1_acc_de:
+    g: -0.005336941284646143
+  PUMP1_acc_nde:
+    g: 0.012167977821886073
+  COMP1_meter:
+    gi: -0.0005697541708972813
+    gv: -0.0007513018828194487
+  COMP1_relay:
+    g: -0.0017308722526925067
+  COMP1_rtd:
+    'off': -0.2661618152975999
+  COMP1_acc_de:
+    g: 0.0035000547517842714
+  COMP1_acc_nde:
+    g: -0.03370797404971191
+  AUX1_meter:
+    gi: 0.00194165560696958
+    gv: -0.00016515209119356584
+  ambient:
+    'off': 0.04983243856698004
